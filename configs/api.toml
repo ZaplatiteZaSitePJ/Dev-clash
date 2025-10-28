@@ -1,0 +1,6 @@
+[config]
+bind_addr = ":8080"
+logger_level = "debug"
+
+[storage]
+postgres_uri = "host=localhost port=5432 user=postgres password=postgres dbname=dev_clash sslmode=disable"
