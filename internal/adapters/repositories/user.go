@@ -5,6 +5,7 @@ import (
 	"dev-clash/internal/domain/user"
 	"dev-clash/pkg/logger"
 	custom_errors "dev-clash/pkg/server_utils/errors"
+	"errors"
 	"fmt"
 )
 
@@ -33,13 +34,54 @@ func (userRepo *UserRepository) Save(newUser *user.User) (*user.User, error) {
 }
 
 // FIND USER BY ID IN DATABASE
-func (userRepo *UserRepository) FindByID(id int) (*user.User, bool, error) {
-	query := `SELECT * FROM users WHERE id = $1 RETURNING id, username, email`
-	var findedUser user.User
+func (userRepo *UserRepository) FindByID(id int) (*user.User, error) {
+	query := 
+		`SELECT u.id, u.username, u.email, u.description, u.moderators_times, u.prizes_times, u.participant_times, u.status, s.title
+		FROM users u
+		LEFT JOIN users_skills us ON us.user_id = u.id
+		LEFT JOIN skills s ON us.skill_id = s.id
+		WHERE u.id = $1
+	`
 
-	if err := userRepo.db.QueryRow(query, id).Scan(&findedUser.ID, &findedUser.Username, &findedUser.Email); err != nil {
-		return &user.User{}, false, err
+	var findedUser = &user.User{}
+
+	rows, err := userRepo.db.Query(query, id)
+	if err != nil {
+		return nil, fmt.Errorf("db error: %w", err)
 	}
 
-	return &findedUser, true, nil
+	defer rows.Close()
+
+	firstItter := true 
+	for rows.Next() {
+		
+		var username, email, skill string
+		var description, status sql.NullString
+		var id, moderators_times, prizes_times, participant_times int
+
+		err := rows.Scan(&id, &username, &email, &description, &moderators_times, &prizes_times, &participant_times, &status, &skill)
+		if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// return “not found”
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, fmt.Errorf("db error: %w", err)
+	}
+
+		if firstItter {
+			findedUser.ID = id
+			findedUser.PrizeTimes = prizes_times
+			findedUser.ParticipantTimes = participant_times
+			findedUser.Description = description
+			findedUser.Status = status
+			findedUser.ModeratorTimes = moderators_times
+			findedUser.Email = email
+			findedUser.Username = username
+			firstItter = false
+		}
+
+		findedUser.Skills = append(findedUser.Skills, skill)
+	} 
+
+	return findedUser, nil
 }

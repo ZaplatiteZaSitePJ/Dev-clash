@@ -6,6 +6,7 @@ import (
 	"dev-clash/pkg/logger"
 	custom_errors "dev-clash/pkg/server_utils/errors"
 	"fmt"
+	"strings"
 )
 
 type UserService struct {
@@ -56,4 +57,24 @@ func (u *UserService) CreateUser(input *dto.CreateUser) (*User, error){
 	}
 
 	return u.repo.Save(&newUser)
+}
+
+func (u *UserService) FindUserByID(userID int) (*User, error){
+	logger.Info("Trying to find user: ", userID)
+
+	findedUser, err := u.repo.FindByID(userID)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			wErr := custom_errors.New(err, 404)
+			wErr.AddResponseData("User not found")
+			wErr.AddLogData(fmt.Sprintf("user with id=%d not found", userID))
+			return nil, wErr
+		}
+
+		wErr := custom_errors.New(err, 500)
+		wErr.AddResponseData("Internal server error")
+		wErr.AddLogData(err.Error())
+		return nil, wErr
+	}
+	return findedUser, nil
 }

@@ -1,6 +1,7 @@
 package user
 
 import (
+	"database/sql"
 	"errors"
 	"regexp"
 	"strings"
@@ -11,15 +12,13 @@ type User struct {
 	ID             int		`json:"id"`
 	Username       string	`json:"username"`
 	Email          string	`json:"email"`
-	HashedPassword string	`json:"hashed_password"`
-}
-
-type UserDetails struct {
-	ParticipantTimes int	`json:"participant_times"`
-	PrizeTimes       int	`json:"prize_times"`
-	ModeratorTimes   int	`json:"moderator_times"`
-	Status           string `json:"status"`
-	Description      string	`json:"description"`
+	HashedPassword string	`json:"hashed_password,omitempty"`
+	ParticipantTimes int	`json:"participant_times,omitempty"`
+	PrizeTimes       int	`json:"prize_times,omitempty"`
+	ModeratorTimes   int	`json:"moderator_times,omitempty"`
+	Status           sql.NullString `json:"status,omitempty"`
+	Description      sql.NullString	`json:"description,omitempty"`
+	Skills 	[]string `json:"skills,omitempty"`
 }
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
@@ -37,3 +36,4 @@ func (u *User) Validate() error {
 
 	return nil
 }
+
