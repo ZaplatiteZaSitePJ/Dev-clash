@@ -1,6 +1,6 @@
 package handlers
 
-import "dev-clash/internal/domain/user"
+import "dev-clash/internal/use-cases/user"
 
 type Handlers struct {
 	User *user.UserService

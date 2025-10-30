@@ -5,7 +5,7 @@ import (
 	"dev-clash/internal/adapters/repositories"
 	"dev-clash/internal/controllers"
 	"dev-clash/internal/controllers/handlers"
-	"dev-clash/internal/domain/user"
+	"dev-clash/internal/use-cases/user"
 	"dev-clash/pkg/logger"
 	"fmt"
 	"log"

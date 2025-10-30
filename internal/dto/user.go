@@ -1,29 +1,8 @@
 package dto
 
-import "database/sql"
-
-func NullStringToValid(ns sql.NullString) string{
-	if !ns.Valid {
-		return ""
-	}
-
-	return  ns.String
-}
-
-func NullStringSliceToValid(ns []sql.NullString) []string{
-	strs := make([]string, 0, 5)
-	
-	for _, n := range(ns) {
-		if !n.Valid {
-			break 
-		} else {
-			strs = append(strs, n.String)
-		}	
-	}
-
-	return strs
-}
-
+import (
+	"dev-clash/internal/domain"
+)
 
 type CreateUser struct {
 	Username string `json:"username"`
@@ -38,6 +17,19 @@ type SafetyUser struct {
 	ParticipantTimes int      `json:"participant_times"`
 	PrizeTimes       int      `json:"prize_times"`
 	ModeratorTimes   int      `json:"moderator_times"`
-	Status           string   `json:"status"`
-	Description      string   `json:"description"`
+	Status           string   `json:"status,omitempty"`
+	Description      string   `json:"description,omitempty"`
+}
+
+func SafetyUserFromModel(user *domain.User) *SafetyUser {
+	return &SafetyUser{
+		Username: user.Username, 
+		Email: user.Email, 
+		Description: user.Description,
+		Status: user.Status,
+		ModeratorTimes: user.ModeratorTimes,
+		ParticipantTimes: user.ParticipantTimes,
+		PrizeTimes: user.PrizeTimes,
+		Skills: user.Skills,
+	}
 }

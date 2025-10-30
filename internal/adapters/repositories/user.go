@@ -2,9 +2,10 @@ package repositories
 
 import (
 	"database/sql"
-	"dev-clash/internal/domain/user"
+	"dev-clash/internal/domain"
 	"dev-clash/pkg/logger"
 	custom_errors "dev-clash/pkg/server_utils/errors"
+	"dev-clash/pkg/utils"
 	"fmt"
 )
 
@@ -19,7 +20,7 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 }
 
 // SAVE USER IN DATABASE
-func (userRepo *UserRepository) Save(newUser *user.User) (*user.User, error) {
+func (userRepo *UserRepository) Save(newUser *domain.User) (*domain.User, error) {
 	logger.Info("Trying to push new user in DB", newUser)
 	query := `INSERT INTO users (username, email, hashed_password) VALUES ($1, $2, $3) RETURNING id`
 	if err := userRepo.db.QueryRow(query, newUser.Username, newUser.Email, newUser.HashedPassword).Scan(&newUser.ID); err != nil {
@@ -33,7 +34,7 @@ func (userRepo *UserRepository) Save(newUser *user.User) (*user.User, error) {
 }
 
 // FIND USER BY ID IN DATABASE
-func (userRepo *UserRepository) FindByID(id int) (*user.User, error) {
+func (userRepo *UserRepository) FindByID(id int) (*domain.User, error) {
 	query := 
 		`SELECT u.id, u.username, u.email, u.description, u.moderators_times, u.prizes_times, u.participant_times, u.status, s.title
 		FROM users u
@@ -42,7 +43,7 @@ func (userRepo *UserRepository) FindByID(id int) (*user.User, error) {
 		WHERE u.id = $1
 	`
 
-	var findedUser = &user.User{}
+	var findedUser = &domain.User{}
 
 	rows, err := userRepo.db.Query(query, id)
 	if err != nil {
@@ -64,14 +65,14 @@ func (userRepo *UserRepository) FindByID(id int) (*user.User, error) {
 			findedUser.ID = id
 			findedUser.PrizeTimes = prizes_times
 			findedUser.ParticipantTimes = participant_times
-			findedUser.Description = description
-			findedUser.Status = status
+			findedUser.Description = utils.NullStringToValid(description)
+			findedUser.Status = utils.NullStringToValid(status)
 			findedUser.ModeratorTimes = moderators_times
 			findedUser.Email = email
 			findedUser.Username = username
 			firstItter = false
 		}
-		findedUser.Skills = append(findedUser.Skills, skill)
+		findedUser.Skills = append(findedUser.Skills, utils.NullStringToValid(skill))
 	} 
 
 	if firstItter {

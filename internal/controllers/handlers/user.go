@@ -58,16 +58,7 @@ func (h *Handlers) GetUserByID(w http.ResponseWriter, r *http.Request) {
 		custom_errors.ErrorResponse(w, err, logger.GetLoger())
 	} else {
 		
-		safetyUser := dto.SafetyUser{
-			Username: findedUser.Username, 
-			Email: findedUser.Email, 
-			Description: dto.NullStringToValid(findedUser.Description),
-			Status: dto.NullStringToValid(findedUser.Status),
-			ModeratorTimes: findedUser.ModeratorTimes,
-			ParticipantTimes: findedUser.ParticipantTimes,
-			PrizeTimes: findedUser.PrizeTimes,
-			Skills: dto.NullStringSliceToValid(findedUser.Skills),
-		}
+		safetyUser := dto.SafetyUserFromModel(findedUser)
 		logger.Info(fmt.Sprintf("User finded succesfully: %+v", safetyUser))
 		response_message.WrapperResponseJSON(w, 200, safetyUser)
 	}
