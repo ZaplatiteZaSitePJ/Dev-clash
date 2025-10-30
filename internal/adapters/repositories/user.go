@@ -5,7 +5,6 @@ import (
 	"dev-clash/internal/domain/user"
 	"dev-clash/pkg/logger"
 	custom_errors "dev-clash/pkg/server_utils/errors"
-	"errors"
 	"fmt"
 )
 
@@ -55,18 +54,11 @@ func (userRepo *UserRepository) FindByID(id int) (*user.User, error) {
 	firstItter := true 
 	for rows.Next() {
 		
-		var username, email, skill string
-		var description, status sql.NullString
+		var username, email string
+		var description, status, skill sql.NullString
 		var id, moderators_times, prizes_times, participant_times int
 
-		err := rows.Scan(&id, &username, &email, &description, &moderators_times, &prizes_times, &participant_times, &status, &skill)
-		if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// return “not found”
-			return nil, fmt.Errorf("user not found")
-		}
-		return nil, fmt.Errorf("db error: %w", err)
-	}
+		rows.Scan(&id, &username, &email, &description, &moderators_times, &prizes_times, &participant_times, &status, &skill)
 
 		if firstItter {
 			findedUser.ID = id
@@ -79,9 +71,12 @@ func (userRepo *UserRepository) FindByID(id int) (*user.User, error) {
 			findedUser.Username = username
 			firstItter = false
 		}
-
 		findedUser.Skills = append(findedUser.Skills, skill)
 	} 
+
+	if firstItter {
+		return nil, fmt.Errorf("user not found")
+	}
 
 	return findedUser, nil
 }

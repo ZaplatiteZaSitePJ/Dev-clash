@@ -66,7 +66,7 @@ func (h *Handlers) GetUserByID(w http.ResponseWriter, r *http.Request) {
 			ModeratorTimes: findedUser.ModeratorTimes,
 			ParticipantTimes: findedUser.ParticipantTimes,
 			PrizeTimes: findedUser.PrizeTimes,
-			Skills: findedUser.Skills,
+			Skills: dto.NullStringSliceToValid(findedUser.Skills),
 		}
 		logger.Info(fmt.Sprintf("User finded succesfully: %+v", safetyUser))
 		response_message.WrapperResponseJSON(w, 200, safetyUser)

@@ -18,7 +18,7 @@ type User struct {
 	ModeratorTimes   int	`json:"moderator_times,omitempty"`
 	Status           sql.NullString `json:"status,omitempty"`
 	Description      sql.NullString	`json:"description,omitempty"`
-	Skills 	[]string `json:"skills,omitempty"`
+	Skills 	[]sql.NullString `json:"skills,omitempty"`
 }
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
