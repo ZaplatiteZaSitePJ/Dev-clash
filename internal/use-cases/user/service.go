@@ -65,17 +65,30 @@ func (u *UserService) FindUserByID(userID int) (*domain.User, error){
 
 	findedUser, err := u.repo.FindByID(userID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			wErr := custom_errors.New(err, 404)
-			wErr.AddResponseData("User not found")
+	 	if strings.Contains(err.Error(), "not found") {
+	 		wErr := custom_errors.New(err, 404)
+	 		wErr.AddResponseData("User not found")
 			wErr.AddLogData(fmt.Sprintf("user with id=%d not found", userID))
-			return nil, wErr
+ 			return nil, wErr
 		}
 
-		wErr := custom_errors.New(err, 500)
-		wErr.AddResponseData("Internal server error")
-		wErr.AddLogData(err.Error())
+	 	wErr := custom_errors.New(err, 500)
+	 	wErr.AddResponseData("Internal server error")
+	 	wErr.AddLogData(err.Error())
 		return nil, wErr
 	}
 	return findedUser, nil
+}
+
+func (u *UserService) FindAllUsers() ([]*domain.User, error) {
+	logger.Info("Trying to find all users")
+	findedUsers, err := u.repo.FindAll()
+
+	if err != nil {
+	 	wErr := custom_errors.New(err, 500)
+	 	wErr.AddResponseData("Internal server error")
+	 	wErr.AddLogData(err.Error())
+		return nil, wErr
+	}
+	return findedUsers, nil
 }

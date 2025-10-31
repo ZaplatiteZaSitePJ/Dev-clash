@@ -76,8 +76,68 @@ func (userRepo *UserRepository) FindByID(id int) (*domain.User, error) {
 	} 
 
 	if firstItter {
-		return nil, fmt.Errorf("user not found")
+		return nil, fmt.Errorf("user not found, %w", err)
 	}
 
 	return findedUser, nil
+}
+
+func (userRepo *UserRepository) FindAll() ([]*domain.User, error) {
+	query := 
+	`SELECT u.id, u.username, u.email, u.description, u.moderators_times, u.prizes_times, u.participant_times, u.status, s.title
+		FROM users u
+		LEFT JOIN users_skills us ON u.id = us.user_id
+		LEFT JOIN skills s ON s.id = us.skill_id
+		ORDER BY u.id
+	`
+
+	usersMap := make(map[int]*domain.User)
+
+	rows, err := userRepo.db.Query(query)
+	if err !=nil {
+		return nil, fmt.Errorf(`db error: %w`, err) 
+	}
+
+	defer rows.Close()
+
+	for rows.Next() { 
+		var (
+			username, email string
+			description, status, skill sql.NullString
+			id, moderators_times, prizes_times, participant_times int
+		)
+
+		if err := rows.Scan(&id, &username, &email, &description, &moderators_times, &prizes_times, &participant_times, &status, &skill); err != nil {
+			return nil, fmt.Errorf("db error: %w", err)
+		}
+
+		user, exist := usersMap[id]
+		// if usersMap[id] not exist - append new user in map
+		if !exist {
+			user = &domain.User{
+				ID:              id,
+				Username:        username,
+				Email:           email,
+				Description:     utils.NullStringToValid(description),
+				Status:          utils.NullStringToValid(status),
+				ModeratorTimes:  moderators_times,
+				PrizeTimes:      prizes_times,
+				ParticipantTimes: participant_times,
+				Skills:          []string{},
+			}
+			usersMap[id] = user
+		}
+		// appending skill to user with current id in map
+		if skill.Valid {
+			user.Skills = append(user.Skills, skill.String)
+		} 
+	}
+
+	userSlice := make([]*domain.User, 0, len(usersMap))
+	for _, user := range(usersMap) {
+		userSlice = append(userSlice, user)
+	}
+
+	return userSlice, nil
+
 }

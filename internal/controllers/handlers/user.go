@@ -57,9 +57,20 @@ func (h *Handlers) GetUserByID(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 		custom_errors.ErrorResponse(w, err, logger.GetLoger())
 	} else {
-		
 		safetyUser := dto.SafetyUserFromModel(findedUser)
-		logger.Info(fmt.Sprintf("User finded succesfully: %+v", safetyUser))
+		logger.Info("User finded succesfully")
 		response_message.WrapperResponseJSON(w, 200, safetyUser)
+	}
+}
+
+func (h *Handlers) GetAllUsers(w http.ResponseWriter, r *http.Request) {
+	configure_headers.DefaultHeader(w)
+
+	users, err := h.User.FindAllUsers()
+	if err != nil {
+		custom_errors.ErrorResponse(w, err, logger.GetLoger())
+	} else {
+		logger.Info("Users finded succesfully")
+		response_message.WrapperResponseJSON(w, 200, users)
 	}
 }
