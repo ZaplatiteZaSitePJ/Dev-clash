@@ -1,6 +1,8 @@
 package logger
 
-import "github.com/sirupsen/logrus"
+import (
+	"github.com/sirupsen/logrus"
+)
 
 var logger *logrus.Logger
 
@@ -19,6 +21,13 @@ func InitLogger(log_level string)  error {
 
 func Info(args ...any) {
 	logger.Info(args...)
+}
+
+func Error(layer string, args ...any) {
+	fields:= logrus.Fields {
+		"layer": layer,
+	}
+	logger.WithFields(fields).Error(args...)
 }
 
 func GetLoger() *logrus.Logger {

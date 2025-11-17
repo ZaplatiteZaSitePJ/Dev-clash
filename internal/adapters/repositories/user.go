@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"dev-clash/internal/domain"
 	"dev-clash/pkg/logger"
-	custom_errors "dev-clash/pkg/server_utils/errors"
-	"dev-clash/pkg/utils"
-	"fmt"
+	"dev-clash/pkg/server_utils/app_errors"
+	pg_err "dev-clash/pkg/server_utils/db_errors/postgres"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type UserRepository struct {
@@ -21,123 +23,161 @@ func NewUserRepository(db *sql.DB) *UserRepository {
 
 // SAVE USER IN DATABASE
 func (userRepo *UserRepository) Save(newUser *domain.User) (*domain.User, error) {
-	logger.Info("Trying to push new user in DB", newUser)
-	query := `INSERT INTO users (username, email, hashed_password) VALUES ($1, $2, $3) RETURNING id`
-	if err := userRepo.db.QueryRow(query, newUser.Username, newUser.Email, newUser.HashedPassword).Scan(&newUser.ID); err != nil {
-		wError := custom_errors.New(err, 500)
-		wError.AddLogData(fmt.Sprintf("failed to push user in db: %+v", newUser))
-		wError.AddResponseData("Sorry, we gave some troubles, try again later")
-		return nil, wError 
-	}
+	var savedUser = &domain.User{}
 
-	return newUser, nil
+	query := 
+		`INSERT INTO users 
+		(id, username, email, hashed_password, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, username, email, rating, created_at, updated_at`
+		
+	err := userRepo.db.QueryRow(
+		query, 
+		newUser.ID, 
+		newUser.Username, 
+		newUser.Email, 
+		newUser.HashedPassword, 
+		newUser.CreatedAt, 
+		newUser.UpdatedAt,
+	).Scan(
+		&savedUser.ID, 
+		&savedUser.Username, 
+		&savedUser.Email, 
+		&savedUser.Rating, 
+		&savedUser.CreatedAt, 
+		&savedUser.UpdatedAt)
+
+	if err != nil {
+		logger.Error("db", err)
+		if pg_err.IsUniqueViolation(err) {
+			return nil, app_errors.AlreadyExists("user already exist", err)
+		}
+		return nil, app_errors.Internal("server unavailable now. Try again later", err)
+	}
+	return savedUser, nil
 }
 
 // FIND USER BY ID IN DATABASE
-func (userRepo *UserRepository) FindByID(id int) (*domain.User, error) {
-	query := 
-		`SELECT u.id, u.username, u.email, u.description, u.moderators_times, u.prizes_times, u.participant_times, u.status, s.title
-		FROM users u
-		LEFT JOIN users_skills us ON us.user_id = u.id
-		LEFT JOIN skills s ON us.skill_id = s.id
-		WHERE u.id = $1
-	`
+func (userRepo *UserRepository) FindByID(id uuid.UUID) (*domain.User, error) {
+	findedUser := &domain.User{}
+	
+	userQuery := "SELECT id, username, email, rating FROM users WHERE id = $1"
 
-	var findedUser = &domain.User{}
+	friendIDsQuery := `SELECT
+			CASE
+				WHEN requester_id = $1 THEN addressee_id
+				ELSE requester_id
+			END AS friends_id
+		FROM friendship
+		WHERE (requester_id = $1 OR addressee_id = $1) AND status=$2
+		`
 
-	rows, err := userRepo.db.Query(query, id)
+	err := userRepo.db.QueryRow(userQuery, id).Scan(&findedUser.ID, &findedUser.Username, &findedUser.Email, &findedUser.Rating)
+
 	if err != nil {
-		return nil, fmt.Errorf("db error: %w", err)
+		logger.Error("db", err)
+		if err == sql.ErrNoRows {
+			return nil, app_errors.NotFound("user not found", err)
+		}
+		return nil, app_errors.Internal("server unavailable now. Try again later", err)
+	}
+
+	rows, err:= userRepo.db.Query(friendIDsQuery, id, domain.StatusAccepted)
+
+	if err != nil {
+		logger.Error("db", err)
+		return nil, app_errors.Internal("server unavailable now. Try again later", err)
 	}
 
 	defer rows.Close()
 
-	firstItter := true 
+	findedUser.FriendIDs = []uuid.UUID{}
 	for rows.Next() {
-		
-		var username, email string
-		var description, status, skill sql.NullString
-		var id, moderators_times, prizes_times, participant_times int
+		var friendID uuid.UUID
 
-		rows.Scan(&id, &username, &email, &description, &moderators_times, &prizes_times, &participant_times, &status, &skill)
+		err := rows.Scan(&friendID)
 
-		if firstItter {
-			findedUser.ID = id
-			findedUser.PrizeTimes = prizes_times
-			findedUser.ParticipantTimes = participant_times
-			findedUser.Description = utils.NullStringToValid(description)
-			findedUser.Status = utils.NullStringToValid(status)
-			findedUser.ModeratorTimes = moderators_times
-			findedUser.Email = email
-			findedUser.Username = username
-			firstItter = false
+		if err != nil {
+			logger.Error("db", err)
+			return nil, app_errors.Internal("server unavailable now. Try again later", err)
 		}
-		findedUser.Skills = append(findedUser.Skills, utils.NullStringToValid(skill))
-	} 
 
-	if firstItter {
-		return nil, fmt.Errorf("user not found, %w", err)
+		findedUser.FriendIDs = append(findedUser.FriendIDs, friendID)
 	}
+
+	if err := rows.Err(); err != nil {
+		logger.Error("db", err)
+        return nil, app_errors.Internal("server unavailable now. Try again later", err)
+    }
 
 	return findedUser, nil
 }
 
-func (userRepo *UserRepository) FindAll() ([]*domain.User, error) {
-	query := 
-	`SELECT u.id, u.username, u.email, u.description, u.moderators_times, u.prizes_times, u.participant_times, u.status, s.title
-		FROM users u
-		LEFT JOIN users_skills us ON u.id = us.user_id
-		LEFT JOIN skills s ON s.id = us.skill_id
-		ORDER BY u.id
-	`
+func (userRepo *UserRepository) FindBySeveralIDs(ids []uuid.UUID) ([]*domain.User, error) {
+	if len(ids) == 0 {
+        return []*domain.User{}, nil
+    }
 
-	usersMap := make(map[int]*domain.User)
+	findedUsers := make([]*domain.User, 0, len(ids))
 
-	rows, err := userRepo.db.Query(query)
-	if err !=nil {
-		return nil, fmt.Errorf(`db error: %w`, err) 
+	query :=
+		`
+		SELECT id, username, email, rating FROM users
+		WHERE id = ANY($1)
+		`
+
+	rows, err:= userRepo.db.Query(query, pq.Array(ids))
+
+	if err != nil {
+		logger.Error("db", err)
+		return nil, app_errors.Internal("server unavailable now. Try again later", err)
 	}
 
 	defer rows.Close()
 
-	for rows.Next() { 
-		var (
-			username, email string
-			description, status, skill sql.NullString
-			id, moderators_times, prizes_times, participant_times int
-		)
-
-		if err := rows.Scan(&id, &username, &email, &description, &moderators_times, &prizes_times, &participant_times, &status, &skill); err != nil {
-			return nil, fmt.Errorf("db error: %w", err)
+	for rows.Next() {
+		user := &domain.User{}
+		err := rows.Scan(&user.ID, &user.Username, &user.Email, &user.Rating)
+		
+		if err != nil {
+			logger.Error("db", err)
+			return nil, app_errors.Internal("server unavailable now. Try again later", err)
 		}
 
-		user, exist := usersMap[id]
-		// if usersMap[id] not exist - append new user in map
-		if !exist {
-			user = &domain.User{
-				ID:              id,
-				Username:        username,
-				Email:           email,
-				Description:     utils.NullStringToValid(description),
-				Status:          utils.NullStringToValid(status),
-				ModeratorTimes:  moderators_times,
-				PrizeTimes:      prizes_times,
-				ParticipantTimes: participant_times,
-				Skills:          []string{},
-			}
-			usersMap[id] = user
-		}
-		// appending skill to user with current id in map
-		if skill.Valid {
-			user.Skills = append(user.Skills, skill.String)
-		} 
+		findedUsers = append(findedUsers, user)
 	}
 
-	userSlice := make([]*domain.User, 0, len(usersMap))
-	for _, user := range(usersMap) {
-		userSlice = append(userSlice, user)
+	return findedUsers, nil
+}
+
+func (userRepo *UserRepository) FindAll() ([]*domain.User, error) {
+	
+	findedUsers := []*domain.User{}
+
+	query := "SELECT id, username, email, rating FROM users"
+
+	rows, err := userRepo.db.Query(query)
+	if err != nil {
+		logger.Error("db", err)
+		return nil, app_errors.Internal("server unavailable now. Try again later", err)
 	}
 
-	return userSlice, nil
+	defer rows.Close()
 
+	for rows.Next() {
+		user := &domain.User{}
+		rows.Scan(&user.ID, &user.Username, &user.Email, &user.Rating)
+		findedUsers = append(findedUsers, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		logger.Error("db", err)
+        return nil, app_errors.Internal("server unavailable now. Try again later", err)
+    }
+
+	return findedUsers, nil
+}
+
+func (userRepo *UserRepository) DeleteByID(id int) error {
+	return nil
 }

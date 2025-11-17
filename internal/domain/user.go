@@ -4,25 +4,28 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
+
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 type User struct {
-	ID             int		`json:"id"`
+	ID             uuid.UUID 		`json:"id"`
 	Username       string	`json:"username"`
 	Email          string	`json:"email"`
+	FriendIDs 	   []uuid.UUID	`json:"friendIDs"`
 	HashedPassword string	`json:"hashed_password,omitempty"`
-	ParticipantTimes int	`json:"participant_times,omitempty"`
-	PrizeTimes       int	`json:"prize_times,omitempty"`
-	ModeratorTimes   int	`json:"moderator_times,omitempty"`
-	Status           string `json:"status,omitempty"`
-	Description      string	`json:"description,omitempty"`
-	Skills 	[]string `json:"skills,omitempty"`
+	Rating         decimal.Decimal `db:"rating" json:"rating"`
+	CreatedAt      time.Time       `db:"created_at" json:"created_at"`
+    UpdatedAt      time.Time       `db:"updated_at" json:"updated_at"`
+    DeletedAt      *time.Time      `db:"deleted_at" json:"deleted_at,omitempty"`
 }
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
-func (u *User) Validate() error {
+func (u *User) ValidateUser() error {
 	trimedUsername := strings.TrimSpace(u.Username)
 
 	if trimedUsername == "" || utf8.RuneCountInString(trimedUsername) < 3 {

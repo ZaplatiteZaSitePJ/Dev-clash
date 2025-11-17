@@ -1,11 +1,12 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(32) NOT NULL UNIQUE,
-    email VARCHAR(128) NOT NULL CHECK (POSITION('@' IN email) > 1),
-    hashed_password VARCHAR(72) NOT NULL,
-    participant_times INTEGER DEFAULT 0,
-    prize_times INTEGER DEFAULT 0,
-    moderator_times INTEGER DEFAULT 0,
-    status VARCHAR(128),
-    description TEXT
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(64) NOT NULL UNIQUE,
+    email VARCHAR(128) NOT NULL UNIQUE,
+    hashed_password TEXT NOT NULL,
+    rating NUMERIC(3,2) DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE
 );

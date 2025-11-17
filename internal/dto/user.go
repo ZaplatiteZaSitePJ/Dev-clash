@@ -2,6 +2,8 @@ package dto
 
 import (
 	"dev-clash/internal/domain"
+
+	"github.com/shopspring/decimal"
 )
 
 type CreateUser struct {
@@ -10,26 +12,41 @@ type CreateUser struct {
 	Password string `json:"password"`
 }
 
-type SafetyUser struct {
+type PublicUser struct {
 	Username         string   `json:"username"`
 	Email            string   `json:"email"`
-	Skills           []string `json:"skills,omitempty"`
-	ParticipantTimes int      `json:"participant_times"`
-	PrizeTimes       int      `json:"prize_times"`
-	ModeratorTimes   int      `json:"moderator_times"`
-	Status           string   `json:"status,omitempty"`
-	Description      string   `json:"description,omitempty"`
+	Rating         decimal.Decimal `db:"rating" json:"rating"`
 }
 
-func SafetyUserFromModel(user *domain.User) *SafetyUser {
-	return &SafetyUser{
+type PublicUserWithFriends struct {
+	Username         string   `json:"username"`
+	Email            string   `json:"email"`
+	Rating         decimal.Decimal `db:"rating" json:"rating"`
+	Friends 		[]*PublicUser `json:"friends"`
+}
+
+func PublicUserWithFriendsFromModel(user *domain.User, friends []*domain.User) *PublicUserWithFriends {
+	convertedFriends := SeveralUsersToPublic(friends)
+	return &PublicUserWithFriends{
 		Username: user.Username, 
-		Email: user.Email, 
-		Description: user.Description,
-		Status: user.Status,
-		ModeratorTimes: user.ModeratorTimes,
-		ParticipantTimes: user.ParticipantTimes,
-		PrizeTimes: user.PrizeTimes,
-		Skills: user.Skills,
+		Email: user.Email,
+		Rating: user.Rating, 
+		Friends: convertedFriends,
 	}
+}
+
+func PublicUserFromModel(user *domain.User) *PublicUser {
+	return &PublicUser{
+		Username: user.Username, 
+		Email: user.Email,
+		Rating: user.Rating, 
+	}
+}
+
+func SeveralUsersToPublic(users []*domain.User) []*PublicUser {
+    publicUsers := make([]*PublicUser, 0, len(users))
+    for _, u := range users {
+        publicUsers = append(publicUsers, PublicUserFromModel(u))
+    }
+    return publicUsers
 }
